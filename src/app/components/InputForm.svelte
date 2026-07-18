@@ -33,6 +33,11 @@
   ]
 
   const odooVersions = [17, 18, 19]
+
+  const deployments = [
+    { value: 'same', label: 'Same machine (Odoo + PostgreSQL)' },
+    { value: 'separate', label: 'Separate dedicated servers' },
+  ]
 </script>
 
 <div class="space-y-5">
@@ -160,6 +165,26 @@
         <option value={s.value}>{s.label}</option>
       {/each}
     </select>
+  </div>
+
+  <!-- Deployment Mode -->
+  <div>
+    <label class="block text-sm font-medium text-gray-200" for="deploy">Deployment Mode</label>
+    <select
+      id="deploy"
+      value={inputs.deployment}
+      onchange={(e) => handleInput('deployment', e.target.value)}
+      class="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+    >
+      {#each deployments as d}
+        <option value={d.value}>{d.label}</option>
+      {/each}
+    </select>
+    <p class="text-xs text-gray-400 mt-1">
+      {inputs.deployment === 'same'
+        ? 'RAM split: 65% PostgreSQL, 35% Odoo, 10% OS reserve'
+        : 'Each service gets full machine resources'}
+    </p>
   </div>
 
   <!-- Connection Pooling -->

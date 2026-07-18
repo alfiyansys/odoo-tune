@@ -46,6 +46,7 @@ const DEFAULTS = {
   dbSize: 'medium',
   connPool: 'transaction',
   profile: 'balanced',
+  deployment: 'same',  // 'same' = Odoo+PG on one machine, 'separate' = dedicated machines
 }
 
 /**
@@ -76,28 +77,48 @@ export function normalizeInputs(inputs) {
   const validVersions = [17, 18, 19]
   if (!validVersions.includes(i.odooVersion)) throw new Error(`odooVersion must be one of: ${validVersions.join(', ')}`)
 
+  const validDeployments = ['same', 'separate']
+  if (!validDeployments.includes(i.deployment)) throw new Error(`deployment must be one of: ${validDeployments.join(', ')}`)
+
   return i
 }
 
 /**
+ * Split resources between PostgreSQL and Odoo when co-located.
+ * Returns dedicated RAM for PG and Odoo.
+ */
+function splitResources(totalRamGB, deployment) {
+  if (deployment === 'separate') {
+    return { pgRamGB: totalRamGB, odooRamGB: totalRamGB, osReserveGB: 0 }
+  }
+  // Same machine: PG gets 65% of usable RAM, Odoo gets 35%, OS reserve 10%
+  const osReserveGB = Math.max(1, Math.round(totalRamGB * 0.1))
+  const remaining = totalRamGB - osReserveGB
+  const pgRamGB = Math.round(remaining * 0.65)
+  const odooRamGB = remaining - pgRamGB
+  return { pgRamGB, odooRamGB, osReserveGB }
+}
+
+/**
  * Main tuning function.
+ *
+ * @param {object} inputs
+ * @returns {object} Tuning result with postgresqlConf, odooConf, params, warnings
  */
 export function tune(inputs = {}) {
   const i = normalizeInputs(inputs)
   const profileData = PROFILES[i.profile].profile
   const vTuning = getVersionTuning(i.odooVersion)
+  const { pgRamGB, odooRamGB, osReserveGB } = splitResources(i.totalRamGB, i.deployment)
 
-  // --- PostgreSQL config ---
+  // --- PostgreSQL config (uses PG's share of RAM) ---
   const memory = generateMemoryConfig({
-    totalRamGB: i.totalRamGB,
+    totalRamGB: pgRamGB,
     maxConnections: i.maxConnections,
     profileMultiplier: profileData.workMemMultiplier * vTuning.workMemMultiplier,
   })
 
-  const autovacuum = generateAutovacuumConfig({
-    cpuCores: i.cpuCores,
-    diskType: i.diskType,
-  })
+  const autovacuum = generateAutovacuumConfig({ cpuCores: i.cpuCores, diskType: i.diskType })
 
   const workers = generateWorkersConfig({
     expectedUsers: i.users,
@@ -105,32 +126,34 @@ export function tune(inputs = {}) {
     connPool: i.connPool,
   })
 
-  const planner = generatePlannerConfig({
-    diskType: i.diskType,
-    dbSize: i.dbSize,
-  })
+  const planner = generatePlannerConfig({ diskType: i.diskType, dbSize: i.dbSize })
 
-  // --- Odoo config ---
+  // --- Odoo config (uses Odoo's share of RAM) ---
   const odoo = generateOdooConfig({
-    totalRamGB: i.totalRamGB,
+    totalRamGB: odooRamGB,
     cpuCores: i.cpuCores,
     maxConnections: workers.pgParams.maxConn.value,
     dbSize: i.dbSize,
     odooVersion: i.odooVersion,
   })
 
-  // --- WAL / Checkpoint section ---
-  const walConfig = generateWALConfig({ totalRamGB: i.totalRamGB, batchHeavy: i.batchHeavy })
+  // --- WAL / Checkpoint section (uses PG's share) ---
+  const walConfig = generateWALConfig({ totalRamGB: pgRamGB, batchHeavy: i.batchHeavy })
 
   // --- Lock management (version-aware) ---
   const lockConfig = generateLockConfig(vTuning.maxLocksPerTransaction)
 
   // --- Assemble full postgresql.conf ---
+  const deploymentLabel = i.deployment === 'same'
+    ? `Co-located with Odoo (PG: ${pgRamGB}GB, Odoo: ${odooRamGB}GB, OS: ${osReserveGB}GB)`
+    : 'Dedicated server (separate from Odoo)'
+
   const postgresqlConf = `# =================================================================
-# OdooTune — PostgreSQL Configuration for Odoo
+# OdooTune - PostgreSQL Configuration for Odoo
 # Generated for: ${i.profile} profile, ${i.totalRamGB}GB RAM, ${i.cpuCores} cores, ${i.diskType} disk
 # Odoo version: ${i.odooVersion}  |  Users: ~${i.users}  |  DB size: ${i.dbSize}
 ${vTuning.configComment}
+# Deployment: ${deploymentLabel}
 # =================================================================
 # WARNING: Always test in staging before applying to production!
 # =================================================================
@@ -167,6 +190,7 @@ statement_timeout = 0
       planner: planner.params,
       wal: walConfig.params,
       version: vTuning,
+      resourceSplit: { pgRamGB, odooRamGB, osReserveGB, deployment: i.deployment },
     },
     warnings,
     inputs: i,

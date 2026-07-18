@@ -18,6 +18,7 @@ export function defaultInputs() {
     dbSize: 'medium',
     connPool: 'transaction',
     profile: 'balanced',
+    deployment: 'same',
     multiCompany: false,
     batchHeavy: false,
   }
