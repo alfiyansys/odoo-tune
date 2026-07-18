@@ -16,7 +16,7 @@
  */
 export function calcSharedBuffers(totalRamGB) {
   const raw = Math.round(totalRamGB * 0.25)
-  const value = Math.min(raw, 16)
+  const value = Math.min(Math.max(raw, 1), 16)
   const warning = value > 12
     ? 'High shared_buffers may cause double-caching with OS page cache. Consider 12GB instead.'
     : undefined
@@ -39,7 +39,7 @@ export function calcSharedBuffers(totalRamGB) {
  * @returns {{ value: number, unit: string, configLine: string, rationale: string }}
  */
 export function calcEffectiveCacheSize(totalRamGB) {
-  const value = Math.round(totalRamGB * 0.67)
+  const value = Math.max(Math.round(totalRamGB * 0.67), 2)
 
   return {
     value,
@@ -87,14 +87,15 @@ export function calcWorkMem(totalRamGB, maxConnections, profileMultiplier = 1) {
  * @returns {{ value: number, unit: string, configLine: string, rationale: string }}
  */
 export function calcMaintenanceWorkMem(totalRamGB) {
-  const raw = Math.round(totalRamGB * 0.05)
-  const value = Math.min(raw, 2)
+  const rawGB = Math.round(totalRamGB * 0.05)
+  const gbValue = Math.min(rawGB, 2)
+  const value = Math.max(gbValue, 1)
 
   return {
     value,
     unit: 'GB',
     configLine: `maintenance_work_mem = ${value}GB`,
-    rationale: `5% of system RAM (${totalRamGB}GB × 0.05 = ${raw}GB)${raw > 2 ? ', capped at 2GB' : ''}. Odoo module installations and updates run heavy DDL (CREATE INDEX, ALTER TABLE). Higher maintenance_work_mem speeds up index creation and VACUUM. During big imports or module upgrades, this is critical.`,
+    rationale: `5% of system RAM (${totalRamGB}GB × 0.05 = ${rawGB}GB), capped at 2GB, minimum 1GB. Odoo module installations and updates run heavy DDL (CREATE INDEX, ALTER TABLE). Higher maintenance_work_mem speeds up index creation and VACUUM. During big imports or module upgrades, this is critical.`,
   }
 }
 
