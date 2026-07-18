@@ -47,6 +47,7 @@ const DEFAULTS = {
   connPool: 'transaction',
   profile: 'balanced',
   deployment: 'same',  // 'same' = Odoo+PG on one machine, 'separate' = dedicated machines
+  osReserveGB: undefined,  // undefined = auto-calculate based on total RAM
 }
 
 /**
@@ -87,13 +88,15 @@ export function normalizeInputs(inputs) {
  * Split resources between PostgreSQL and Odoo when co-located.
  * Returns dedicated RAM for PG and Odoo.
  */
-function splitResources(totalRamGB, deployment) {
+function splitResources(totalRamGB, deployment, osReserveGBOverride) {
   if (deployment === 'separate') {
     return { pgRamGB: totalRamGB, odooRamGB: totalRamGB, osReserveGB: 0 }
   }
-  // Same machine: PG gets 65% of usable RAM, Odoo gets 35%, OS reserve 10%
-  const osReserveGB = Math.max(1, Math.round(totalRamGB * 0.1))
-  const remaining = totalRamGB - osReserveGB
+  // Same machine: calculate OS reserve (auto or manual)
+  const osReserveGB = osReserveGBOverride != null
+    ? osReserveGBOverride
+    : Math.max(1, Math.round(totalRamGB * 0.1))
+  const remaining = Math.max(1, totalRamGB - osReserveGB)
   const pgRamGB = Math.round(remaining * 0.65)
   const odooRamGB = remaining - pgRamGB
   return { pgRamGB, odooRamGB, osReserveGB }
@@ -109,7 +112,7 @@ export function tune(inputs = {}) {
   const i = normalizeInputs(inputs)
   const profileData = PROFILES[i.profile].profile
   const vTuning = getVersionTuning(i.odooVersion)
-  const { pgRamGB, odooRamGB, osReserveGB } = splitResources(i.totalRamGB, i.deployment)
+  const { pgRamGB, odooRamGB, osReserveGB } = splitResources(i.totalRamGB, i.deployment, i.osReserveGB)
 
   // --- PostgreSQL config (uses PG's share of RAM) ---
   const memory = generateMemoryConfig({
@@ -144,8 +147,11 @@ export function tune(inputs = {}) {
   const lockConfig = generateLockConfig(vTuning.maxLocksPerTransaction)
 
   // --- Assemble full postgresql.conf ---
+  const osLabel = i.osReserveGB != null
+    ? `OS reserve (manual): ${osReserveGB}GB`
+    : `OS reserve (auto): ${osReserveGB}GB`
   const deploymentLabel = i.deployment === 'same'
-    ? `Co-located with Odoo (PG: ${pgRamGB}GB, Odoo: ${odooRamGB}GB, OS: ${osReserveGB}GB)`
+    ? `Co-located with Odoo (PG: ${pgRamGB}GB, Odoo: ${odooRamGB}GB, ${osLabel})`
     : 'Dedicated server (separate from Odoo)'
 
   const postgresqlConf = `# =================================================================

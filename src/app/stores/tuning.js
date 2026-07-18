@@ -19,6 +19,7 @@ export function defaultInputs() {
     connPool: 'transaction',
     profile: 'balanced',
     deployment: 'same',
+    osReserveGB: undefined,  // undefined = auto-calculate
     multiCompany: false,
     batchHeavy: false,
   }

@@ -12,6 +12,24 @@
     onChange({ ...inputs, [field]: value })
   }
 
+  // OS reserve: default auto (calculated) or manual GB
+  let osReserveManual = $state(false)
+  let osReserveGB = $state(3)
+
+  function handleOsReserveToggle() {
+    osReserveManual = !osReserveManual
+    if (!osReserveManual) {
+      handleInput('osReserveGB', undefined)
+    } else {
+      handleInput('osReserveGB', osReserveGB)
+    }
+  }
+
+  function handleOsReserveChange(val) {
+    osReserveGB = val
+    handleInput('osReserveGB', val)
+  }
+
   const diskTypes = [
     { value: 'nvme', label: 'NVMe' },
     { value: 'ssd', label: 'SSD' },
@@ -50,7 +68,7 @@
   <!-- RAM Slider -->
   <div>
     <label class="flex justify-between text-sm font-medium text-gray-200" for="ram">
-      <span>RAM</span>
+      <span>Total RAM</span>
       <span class="text-indigo-400 font-mono">{inputs.totalRamGB} GB</span>
     </label>
     <input
@@ -67,6 +85,47 @@
       <span>1 GB</span>
       <span>256 GB</span>
     </div>
+  </div>
+
+  <!-- OS Reserve -->
+  <div class="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+    <div class="flex items-center justify-between">
+      <label class="text-sm font-medium text-gray-200" for="os-reserve">
+        OS &amp; System Reserve
+      </label>
+      <button
+        onclick={handleOsReserveToggle}
+        class="text-xs px-2 py-1 rounded border transition-colors
+          {osReserveManual
+            ? 'bg-indigo-900/50 border-indigo-600 text-indigo-300'
+            : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-500'}"
+      >
+        {osReserveManual ? 'Manual' : 'Auto'}
+      </button>
+    </div>
+
+    {#if osReserveManual}
+      <div class="mt-2">
+        <input
+          id="os-reserve"
+          type="range"
+          min="0.5"
+          max="32"
+          step="0.5"
+          value={osReserveGB}
+          oninput={(e) => handleOsReserveChange(parseFloat(e.target.value))}
+          class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mt-1"
+        />
+        <div class="flex justify-between text-xs text-gray-500 mt-0.5">
+          <span class="font-mono">{osReserveGB} GB</span>
+          <span class="text-amber-400/70">Reserved for OS + other services</span>
+        </div>
+      </div>
+    {:else}
+      <p class="text-xs text-gray-400 mt-1">
+        Auto-calculated: ~10% of total RAM (min 1 GB) for OS kernel, caches, and other services
+      </p>
+    {/if}
   </div>
 
   <!-- CPU Cores Slider -->
