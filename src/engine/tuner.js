@@ -38,7 +38,7 @@ const DEFAULTS = {
   cpuCores: 4,             // 4 cores
   diskType: 'ssd',         // 'ssd', 'nvme', 'hdd', 'cloud'
   maxConnections: 100,     // PostgreSQL max_connections
-  odooVersion: 18,         // Odoo version (17, 18)
+  odooVersion: 18,         // Odoo version (17, 18, 19)
   users: 50,               // Concurrent Odoo users
   multiCompany: false,     // Multi-company enabled?
   batchHeavy: false,       // Batch/import heavy workload?
@@ -74,7 +74,7 @@ export function normalizeInputs(inputs) {
 
   if (!PROFILES[i.profile]) throw new Error(`profile must be one of: ${PROFILE_NAMES.join(', ')}`)
 
-  const validVersions = [17, 18]
+  const validVersions = [17, 18, 19]
   if (!validVersions.includes(i.odooVersion)) throw new Error(`odooVersion must be one of: ${validVersions.join(', ')}`)
 
   return i
@@ -89,7 +89,7 @@ export function normalizeInputs(inputs) {
  * @param {string} [inputs.diskType='ssd'] - 'ssd', 'nvme', 'hdd', 'cloud'
  * @param {number} [inputs.users=50] - Concurrent Odoo users
  * @param {number} [inputs.maxConnections=100] - PostgreSQL max_connections
- * @param {string} [inputs.odooVersion=18] - Odoo version
+ * @param {number} [inputs.odooVersion=18] - Odoo version (17, 18, 19)
  * @param {string} [inputs.dbSize='medium'] - 'small', 'medium', 'large', 'very-large'
  * @param {string} [inputs.connPool='transaction'] - 'none', 'transaction', 'session'
  * @param {string} [inputs.profile='balanced'] - Profile name

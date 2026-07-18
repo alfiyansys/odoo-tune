@@ -32,7 +32,7 @@
     { value: 'none', label: 'None (direct connections)' },
   ]
 
-  const odooVersions = [17, 18]
+  const odooVersions = [17, 18, 19]
 </script>
 
 <div class="space-y-5">
