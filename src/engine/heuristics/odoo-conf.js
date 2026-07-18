@@ -159,9 +159,10 @@ export function calcLongpolling(port) {
  * @param {number} params.cpuCores
  * @param {number} params.maxConnections
  * @param {string} params.dbSize
+ * @param {number} [params.odooVersion=18]
  * @returns {{ config: string, params: object, warnings: string[] }}
  */
-export function generateOdooConfig({ totalRamGB, cpuCores, maxConnections, dbSize }) {
+export function generateOdooConfig({ totalRamGB, cpuCores, maxConnections, dbSize, odooVersion = 18 }) {
   const workers = calcOdooWorkers(cpuCores, maxConnections)
   const memLimits = calcMemoryLimits(totalRamGB, workers.value)
   const requestLimits = calcRequestLimits(dbSize)
@@ -171,7 +172,7 @@ export function generateOdooConfig({ totalRamGB, cpuCores, maxConnections, dbSiz
   const warnings = [workers.warning].filter(Boolean)
 
   const config = `# --- OdooTune Generated Configuration ---
-# Optimized for: ${cpuCores} cores, ${totalRamGB}GB RAM, ${dbSize} database
+# Optimized for: Odoo ${odooVersion}, ${cpuCores} cores, ${totalRamGB}GB RAM, ${dbSize} database
 
 [options]
 
