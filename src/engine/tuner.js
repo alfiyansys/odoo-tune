@@ -106,8 +106,9 @@ function splitResources(totalRamGB, cpuCores, deployment, osReserveGBOverride) {
   const odooRamGB = remainingRAM - pgRamGB
 
   // --- CPU split ---
-  // OS gets 1 core min or 15%, whichever is higher. Then PG 65%, Odoo 35%.
-  const osCores = Math.max(1, Math.round(cpuCores * 0.15))
+  // OS gets at least 1 core, capped at 2 cores max (kernel + daemons don't need more).
+  // Then PG 65%, Odoo 35% of remaining.
+  const osCores = Math.min(Math.max(1, Math.round(cpuCores * 0.1)), 2)
   const remainingCores = Math.max(1, cpuCores - osCores)
   const pgCores = Math.max(1, Math.round(remainingCores * 0.65))
   const odooCores = Math.max(1, remainingCores - pgCores)
