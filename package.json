@@ -1,0 +1,28 @@
+{
+  "name": "odootune",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Odoo-optimized PostgreSQL and Odoo configuration tuner",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "svelte": "^5.25.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@tailwindcss/vite": "^4.1.4",
+    "@playwright/test": "^1.52.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.4",
+    "vite": "^6.3.2",
+    "vitest": "^3.1.2"
+  }
+}
