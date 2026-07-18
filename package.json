@@ -13,14 +13,14 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "svelte": "^5.25.0"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^5.0.3",
-    "@tailwindcss/vite": "^4.1.4",
     "@playwright/test": "^1.52.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.3",
+    "postcss": "^8.5.19",
     "tailwindcss": "^4.1.4",
     "vite": "^6.3.2",
     "vitest": "^3.1.2"
