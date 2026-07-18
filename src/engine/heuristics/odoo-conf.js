@@ -47,23 +47,23 @@ export function calcMemoryLimits(totalRamGB, workers) {
   const totalRamMB = totalRamGB * 1024
   const osReserve = Math.round(totalRamMB * 0.3) // 30% for OS + PostgreSQL
   const availForOdoo = totalRamMB - osReserve
-  const perWorker = Math.round(availForOdoo / (workers + 2)) // +2 for cron + longpolling
+  const perWorkerMB = Math.round(availForOdoo / (workers + 2)) // +2 for cron + longpolling
 
-  const softValue = Math.max(64, Math.min(perWorker, 1024))
-  const hardValue = Math.max(128, Math.min(Math.round(perWorker * 1.2), 1536))
+  const softMB = Math.max(64, Math.min(perWorkerMB, 1024))
+  const hardMB = Math.max(128, Math.min(Math.round(perWorkerMB * 1.2), 1536))
 
   return {
     soft: {
-      value: softValue,
+      value: softMB,
       unit: 'MB',
-      configLine: `limit_memory_soft = ${softValue}`,
-      rationale: `~${softValue}MB per worker. (~${totalRamMB}MB total - 30% OS/PG reserve) / (${workers} + 2 workers). Triggers GC when worker reaches this threshold. Prevents Odoo workers from accumulating memory.`,
+      configLine: `limit_memory_soft = ${softMB * 1024 * 1024}`,
+      rationale: `~${softMB}MB per worker (~${softMB * 1024 * 1024} bytes). (~${totalRamMB}MB total - 30% OS/PG reserve) / (${workers} + 2 workers). Triggers GC when worker reaches this threshold. Prevents Odoo workers from accumulating memory.`,
     },
     hard: {
-      value: hardValue,
+      value: hardMB,
       unit: 'MB',
-      configLine: `limit_memory_hard = ${hardValue}`,
-      rationale: `${Math.round(perWorker * 1.2)}MB (soft × 1.2). Worker process killed if memory exceeds this. Essential safety net for memory leaks from custom Odoo modules.`,
+      configLine: `limit_memory_hard = ${hardMB * 1024 * 1024}`,
+      rationale: `~${hardMB}MB per worker (~${hardMB * 1024 * 1024} bytes) (soft × 1.2). Worker process killed if memory exceeds this. Essential safety net for memory leaks from custom Odoo modules.`,
     },
   }
 }
@@ -158,7 +158,9 @@ export function generateOdooConfig({ totalRamGB, cpuCores, maxConnections, dbSiz
 ${workers.configLine}
 max_cron_threads = ${Math.min(workers.value, 5)}
 
-# --- Memory Limits ---
+# --- Memory Limits (values in bytes) ---
+# limit_memory_soft = ${memLimits.soft.value}MB  (~${memLimits.soft.value} MB per worker)
+# limit_memory_hard = ${memLimits.hard.value}MB  (~${memLimits.hard.value} MB per worker)
 ${memLimits.soft.configLine}
 ${memLimits.hard.configLine}
 
