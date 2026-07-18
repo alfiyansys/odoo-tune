@@ -88,18 +88,31 @@ export function normalizeInputs(inputs) {
  * Split resources between PostgreSQL and Odoo when co-located.
  * Returns dedicated RAM for PG and Odoo.
  */
-function splitResources(totalRamGB, deployment, osReserveGBOverride) {
+function splitResources(totalRamGB, cpuCores, deployment, osReserveGBOverride) {
   if (deployment === 'separate') {
-    return { pgRamGB: totalRamGB, odooRamGB: totalRamGB, osReserveGB: 0 }
+    return {
+      pgRamGB: totalRamGB, odooRamGB: totalRamGB, osReserveGB: 0,
+      pgCores: cpuCores, odooCores: cpuCores, osCores: 0,
+    }
   }
   // Same machine: calculate OS reserve (auto or manual)
   const osReserveGB = osReserveGBOverride != null
     ? osReserveGBOverride
     : Math.max(1, Math.round(totalRamGB * 0.1))
-  const remaining = Math.max(1, totalRamGB - osReserveGB)
-  const pgRamGB = Math.round(remaining * 0.65)
-  const odooRamGB = remaining - pgRamGB
-  return { pgRamGB, odooRamGB, osReserveGB }
+
+  // --- RAM split ---
+  const remainingRAM = Math.max(1, totalRamGB - osReserveGB)
+  const pgRamGB = Math.round(remainingRAM * 0.65)
+  const odooRamGB = remainingRAM - pgRamGB
+
+  // --- CPU split ---
+  // OS gets 1 core min or 15%, whichever is higher. Then PG 65%, Odoo 35%.
+  const osCores = Math.max(1, Math.round(cpuCores * 0.15))
+  const remainingCores = Math.max(1, cpuCores - osCores)
+  const pgCores = Math.max(1, Math.round(remainingCores * 0.65))
+  const odooCores = Math.max(1, remainingCores - pgCores)
+
+  return { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores }
 }
 
 /**
@@ -112,7 +125,7 @@ export function tune(inputs = {}) {
   const i = normalizeInputs(inputs)
   const profileData = PROFILES[i.profile].profile
   const vTuning = getVersionTuning(i.odooVersion)
-  const { pgRamGB, odooRamGB, osReserveGB } = splitResources(i.totalRamGB, i.deployment, i.osReserveGB)
+  const { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores } = splitResources(i.totalRamGB, i.cpuCores, i.deployment, i.osReserveGB)
 
   // --- PostgreSQL config (uses PG's share of RAM) ---
   const memory = generateMemoryConfig({
@@ -121,11 +134,11 @@ export function tune(inputs = {}) {
     profileMultiplier: profileData.workMemMultiplier * vTuning.workMemMultiplier,
   })
 
-  const autovacuum = generateAutovacuumConfig({ cpuCores: i.cpuCores, diskType: i.diskType })
+  const autovacuum = generateAutovacuumConfig({ cpuCores: pgCores, diskType: i.diskType })
 
   const workers = generateWorkersConfig({
     expectedUsers: i.users,
-    cpuCores: i.cpuCores,
+    cpuCores: pgCores,
     connPool: i.connPool,
   })
 
@@ -134,7 +147,7 @@ export function tune(inputs = {}) {
   // --- Odoo config (uses Odoo's share of RAM) ---
   const odoo = generateOdooConfig({
     totalRamGB: odooRamGB,
-    cpuCores: i.cpuCores,
+    cpuCores: odooCores,
     maxConnections: workers.pgParams.maxConn.value,
     dbSize: i.dbSize,
     odooVersion: i.odooVersion,
@@ -151,7 +164,7 @@ export function tune(inputs = {}) {
     ? `OS reserve (manual): ${osReserveGB}GB`
     : `OS reserve (auto): ${osReserveGB}GB`
   const deploymentLabel = i.deployment === 'same'
-    ? `Co-located with Odoo (PG: ${pgRamGB}GB, Odoo: ${odooRamGB}GB, ${osLabel})`
+    ? `Co-located with Odoo (PG: ${pgRamGB}GB/${pgCores}c, Odoo: ${odooRamGB}GB/${odooCores}c, ${osLabel})`
     : 'Dedicated server (separate from Odoo)'
 
   const postgresqlConf = `# =================================================================
@@ -196,7 +209,7 @@ statement_timeout = 0
       planner: planner.params,
       wal: walConfig.params,
       version: vTuning,
-      resourceSplit: { pgRamGB, odooRamGB, osReserveGB, deployment: i.deployment },
+      resourceSplit: { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores, deployment: i.deployment },
     },
     warnings,
     inputs: i,
