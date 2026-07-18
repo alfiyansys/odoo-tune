@@ -5,8 +5,6 @@
  * Key considerations:
  * - workers should match PostgreSQL connection capacity
  * - limit_memory_soft/hard prevent OOM from memory-hungry workers
- * - longpolling workers need their own port
- * - dbfilter prevents cross-database access in multi-tenant setups
  */
 
 /**
@@ -134,24 +132,6 @@ export function calcDBPool(maxConnections) {
 }
 
 /**
- * Generate longpolling configuration.
- *
- * @param {number} [port]
- * @returns {{ port: number, geventPort: number, configLines: string, rationale: string }}
- */
-export function calcLongpolling(port) {
-  const longPollPort = port ?? 8072
-  const geventPort = longPollPort
-
-  return {
-    port: longPollPort,
-    geventPort,
-    configLines: `longpolling_port = ${longPollPort}\ngevent_port = ${geventPort}`,
-    rationale: `Long-polling on port ${longPollPort} handles Odoo's real-time notifications (bus chatter, message inbox, live updates). Separate port prevents request queuing from blocking notifications.`,
-  }
-}
-
-/**
  * Generate a complete odoo.conf content.
  *
  * @param {object} params
@@ -167,8 +147,6 @@ export function generateOdooConfig({ totalRamGB, cpuCores, maxConnections, dbSiz
   const memLimits = calcMemoryLimits(totalRamGB, workers.value)
   const requestLimits = calcRequestLimits(dbSize)
   const dbPool = calcDBPool(maxConnections)
-  const longpoll = calcLongpolling()
-
   const warnings = [workers.warning].filter(Boolean)
 
   const config = `# --- OdooTune Generated Configuration ---
@@ -192,15 +170,7 @@ ${requestLimits.limitTimeReal.configLine}
 # --- Database Connection ---
 ${dbPool.dbMaxConn.configLine}
 ${dbPool.dbPoolLimit.configLine}
-
-# --- Long-polling ---
-${longpoll.configLines}
-
-# --- Security (recommended) ---
-# proxy_mode = True          # Uncomment if behind nginx/apache
-# dbfilter = ^%d$            # Database filter for multi-tenant
-# admin_passwd = <CHANGE_ME> # Always set a strong admin password
 `
 
-  return { config, params: { workers, memLimits, requestLimits, dbPool, longpoll }, warnings }
+  return { config, params: { workers, memLimits, requestLimits, dbPool }, warnings }
 }
