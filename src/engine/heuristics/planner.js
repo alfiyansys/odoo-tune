@@ -114,9 +114,17 @@ export function calcParallelCosts() {
  * @param {string} params.dbSize
  * @returns {{ config: string, params: object, warnings: string[] }}
  */
-export function generatePlannerConfig({ diskType, dbSize }) {
-  const randCost = calcRandomPageCost(diskType)
-  const ioConc = calcEffectiveIOConcurrency(diskType)
+export function generatePlannerConfig({ diskType, dbSize, randomPageCost: rpcOverride, ioConcurrency: iocOverride }) {
+  const baseRandCost = calcRandomPageCost(diskType)
+  const baseIoConc = calcEffectiveIOConcurrency(diskType)
+
+  // Apply PG version overrides (PG 17 knows SSDs, lower RPC)
+  const randCost = rpcOverride != null
+    ? { ...baseRandCost, value: rpcOverride, configLine: `random_page_cost = ${rpcOverride}`, rationale: baseRandCost.rationale }
+    : baseRandCost
+  const ioConc = iocOverride != null
+    ? { ...baseIoConc, value: iocOverride, configLine: `effective_io_concurrency = ${iocOverride}`, rationale: baseIoConc.rationale }
+    : baseIoConc
   const statsTarget = calcDefaultStatisticsTarget(dbSize)
   const parallel = calcParallelCosts()
 

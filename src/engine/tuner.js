@@ -17,6 +17,7 @@ import { generateWorkersConfig } from './heuristics/workers.js'
 import { generatePlannerConfig } from './heuristics/planner.js'
 import { generateOdooConfig } from './heuristics/odoo-conf.js'
 import { getVersionTuning } from './heuristics/version.js'
+import { getPgVersionTuning } from './heuristics/pg-version.js'
 
 import * as balancedProfile from './profiles/balanced.js'
 import * as reportingProfile from './profiles/reporting.js'
@@ -40,6 +41,7 @@ const DEFAULTS = {
   diskType: 'ssd',
   maxConnections: 100,
   odooVersion: 18,
+  pgVersion: 16,
   users: 50,
   multiCompany: false,
   batchHeavy: false,
@@ -80,6 +82,9 @@ export function normalizeInputs(inputs) {
 
   const validDeployments = ['same', 'separate']
   if (!validDeployments.includes(i.deployment)) throw new Error(`deployment must be one of: ${validDeployments.join(', ')}`)
+
+  const validPgVersions = [14, 15, 16, 17]
+  if (!validPgVersions.includes(i.pgVersion)) throw new Error(`pgVersion must be one of: ${validPgVersions.join(', ')}`)
 
   return i
 }
@@ -126,6 +131,7 @@ export function tune(inputs = {}) {
   const i = normalizeInputs(inputs)
   const profileData = PROFILES[i.profile].profile
   const vTuning = getVersionTuning(i.odooVersion)
+  const pgVTuning = getPgVersionTuning(i.pgVersion)
   const { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores } = splitResources(i.totalRamGB, i.cpuCores, i.deployment, i.osReserveGB)
 
   // --- PostgreSQL config (uses PG's share of RAM) ---
@@ -133,9 +139,14 @@ export function tune(inputs = {}) {
     totalRamGB: pgRamGB,
     maxConnections: i.maxConnections,
     profileMultiplier: profileData.workMemMultiplier * vTuning.workMemMultiplier,
+    walBuffersMB: pgVTuning.walBuffersMB,
   })
 
-  const autovacuum = generateAutovacuumConfig({ cpuCores: pgCores, diskType: i.diskType })
+  const autovacuum = generateAutovacuumConfig({
+    cpuCores: pgCores,
+    diskType: i.diskType,
+    insertThresholdSupported: pgVTuning.insertThresholdSupported,
+  })
 
   const workers = generateWorkersConfig({
     expectedUsers: i.users,
@@ -143,7 +154,12 @@ export function tune(inputs = {}) {
     connPool: i.connPool,
   })
 
-  const planner = generatePlannerConfig({ diskType: i.diskType, dbSize: i.dbSize })
+  const planner = generatePlannerConfig({
+    diskType: i.diskType,
+    dbSize: i.dbSize,
+    randomPageCost: pgVTuning.randomPageCost,
+    ioConcurrency: pgVTuning.effectiveIoConcurrency,
+  })
 
   // --- Odoo config (uses Odoo's share of RAM) ---
   const odoo = generateOdooConfig({
@@ -171,8 +187,9 @@ export function tune(inputs = {}) {
   const postgresqlConf = `# =================================================================
 # OdooTune - PostgreSQL Configuration for Odoo
 # Generated for: ${i.profile} profile, ${i.totalRamGB}GB RAM, ${i.cpuCores} cores, ${i.diskType} disk
-# Odoo version: ${i.odooVersion}  |  Users: ~${i.users}  |  DB size: ${i.dbSize}
+# Odoo version: ${i.odooVersion}  |  PG version: ${i.pgVersion}  |  Users: ~${i.users}  |  DB size: ${i.dbSize}
 ${vTuning.configComment}
+${pgVTuning.configComment}
 # Deployment: ${deploymentLabel}
 # =================================================================
 # WARNING: Always test in staging before applying to production!
@@ -210,6 +227,7 @@ statement_timeout = 0
       planner: planner.params,
       wal: walConfig.params,
       version: vTuning,
+      pgVersion: pgVTuning,
       resourceSplit: { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores, deployment: i.deployment },
     },
     warnings,
@@ -233,7 +251,6 @@ function generateWALConfig({ totalRamGB, batchHeavy = false }) {
 max_wal_size = ${maxWalGB}GB
 min_wal_size = ${minWalGB}GB
 checkpoint_completion_target = 0.9
-wal_buffers = 16MB
 `,
     params: { maxWalSize: maxWalGB, minWalSize: minWalGB, checkpointTarget: 0.9 },
     warnings: [],

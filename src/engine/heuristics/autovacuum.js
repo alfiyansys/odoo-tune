@@ -165,7 +165,7 @@ export function calcVacuumCost(diskType) {
  * @param {string} params.diskType
  * @returns {{ config: string, params: object, warnings: string[] }}
  */
-export function generateAutovacuumConfig({ cpuCores, diskType }) {
+export function generateAutovacuumConfig({ cpuCores, diskType, insertThresholdSupported = false }) {
   const workers = calcAutovacuumMaxWorkers(cpuCores)
   const naptime = calcAutovacuumNaptime()
   const vacScale = calcVacuumScaleFactor()
@@ -176,13 +176,19 @@ export function generateAutovacuumConfig({ cpuCores, diskType }) {
 
   const warnings = [vacScale.warning, freezeAge.warning].filter(Boolean)
 
+  const insertSection = insertThresholdSupported
+    ? `autovacuum_vacuum_insert_threshold = 1000
+autovacuum_vacuum_insert_scale_factor = 0.01
+`
+    : ''
+
   const config = `# --- Autovacuum (Odoo-tuned) ---
 ${workers.configLine}
 ${naptime.configLine}
 ${vacScale.configLine}
 ${vacThreshold.configLine}
 ${analyzeScale.configLine}
-${freezeAge.configLine}
+${insertSection}${freezeAge.configLine}
 ${vacuumCost.configLines}
 `
 

@@ -54,6 +54,13 @@
 
   const odooVersions = [17, 18, 19]
 
+  const pgVersions = [
+    { value: 14, label: 'PostgreSQL 14' },
+    { value: 15, label: 'PostgreSQL 15' },
+    { value: 16, label: 'PostgreSQL 16' },
+    { value: 17, label: 'PostgreSQL 17' },
+  ]
+
   const deployments = [
     { value: 'same', label: 'Same machine (Odoo + PostgreSQL)' },
     { value: 'separate', label: 'Separate dedicated servers' },
@@ -173,6 +180,21 @@
     >
       {#each odooVersions as v}
         <option value={v}>v{v}</option>
+      {/each}
+    </select>
+  </div>
+
+  <!-- PostgreSQL Version -->
+  <div>
+    <label class="block text-sm font-medium text-gray-200" for="pgversion">PostgreSQL Version</label>
+    <select
+      id="pgversion"
+      value={inputs.pgVersion}
+      onchange={(e) => handleInput('pgVersion', parseInt(e.target.value))}
+      class="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+    >
+      {#each pgVersions as v}
+        <option value={v.value}>{v.label}</option>
       {/each}
     </select>
   </div>

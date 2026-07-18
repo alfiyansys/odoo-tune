@@ -15,6 +15,7 @@ export function defaultInputs() {
     diskType: 'ssd',
     users: 50,
     odooVersion: 18,
+    pgVersion: 16,
     dbSize: 'medium',
     connPool: 'transaction',
     profile: 'balanced',

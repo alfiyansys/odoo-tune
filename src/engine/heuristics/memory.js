@@ -105,8 +105,9 @@ export function calcMaintenanceWorkMem(totalRamGB) {
  * @param {number} sharedBuffersMB - shared_buffers in MB
  * @returns {{ value: number, unit: string, configLine: string, rationale: string }}
  */
-export function calcWalBuffers(sharedBuffersMB) {
-  const value = Math.min(Math.max(16, Math.round(sharedBuffersMB * 0.02)), 64)
+export function calcWalBuffers(sharedBuffersMB, minimumMB) {
+  const minVal = minimumMB ?? 16
+  const value = Math.min(Math.max(minVal, Math.round(sharedBuffersMB * 0.02)), 64)
 
   return {
     value,
@@ -125,12 +126,12 @@ export function calcWalBuffers(sharedBuffersMB) {
  * @param {number} [params.profileMultiplier=1]
  * @returns {{ config: string, params: object, warnings: string[] }}
  */
-export function generateMemoryConfig({ totalRamGB, maxConnections, profileMultiplier = 1 }) {
+export function generateMemoryConfig({ totalRamGB, maxConnections, profileMultiplier = 1, walBuffersMB }) {
   const shared = calcSharedBuffers(totalRamGB)
   const cache = calcEffectiveCacheSize(totalRamGB)
   const work = calcWorkMem(totalRamGB, maxConnections, profileMultiplier)
   const maint = calcMaintenanceWorkMem(totalRamGB)
-  const wal = calcWalBuffers(shared.value * 1024)
+  const wal = calcWalBuffers(shared.value * 1024, walBuffersMB)
 
   const warnings = [shared.warning, work.warning].filter(Boolean)
 
