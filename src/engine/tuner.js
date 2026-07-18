@@ -36,8 +36,8 @@ export const PROFILE_NAMES = Object.keys(PROFILES)
 
 /** Default inputs */
 const DEFAULTS = {
-  totalRamGB: 16,
-  cpuCores: 4,
+  totalRAMGB: 16,
+  totalCPUCores: 4,
   diskType: 'ssd',
   maxConnections: 100,
   odooVersion: 18,
@@ -61,8 +61,8 @@ const DEFAULTS = {
 export function normalizeInputs(inputs) {
   const i = { ...DEFAULTS, ...inputs }
 
-  if (i.totalRamGB < 1) throw new Error('totalRamGB must be at least 1 GB')
-  if (i.cpuCores < 1) throw new Error('cpuCores must be at least 1')
+  if (i.totalRAMGB < 1) throw new Error('totalRAMGB must be at least 1 GB')
+  if (i.totalCPUCores < 1) throw new Error('totalCPUCores must be at least 1')
   if (i.users < 1) throw new Error('users must be at least 1')
   if (i.maxConnections < 10) throw new Error('maxConnections must be at least 10')
 
@@ -132,7 +132,7 @@ export function tune(inputs = {}) {
   const profileData = PROFILES[i.profile].profile
   const vTuning = getVersionTuning(i.odooVersion)
   const pgVTuning = getPgVersionTuning(i.pgVersion)
-  const { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores } = splitResources(i.totalRamGB, i.cpuCores, i.deployment, i.osReserveGB)
+  const { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores } = splitResources(i.totalRAMGB, i.totalCPUCores, i.deployment, i.osReserveGB)
 
   // --- PostgreSQL config (uses PG's share of RAM) ---
   const memory = generateMemoryConfig({
@@ -186,7 +186,7 @@ export function tune(inputs = {}) {
 
   const postgresqlConf = `# =================================================================
 # OdooTune - PostgreSQL Configuration for Odoo
-# Generated for: ${i.profile} profile, ${i.totalRamGB}GB RAM, ${i.cpuCores} cores, ${i.diskType} disk
+# Generated for: ${i.profile} profile, ${i.totalRAMGB}GB RAM, ${i.totalCPUCores} cores, ${i.diskType} disk
 # Odoo version: ${i.odooVersion}  |  PG version: ${i.pgVersion}  |  Users: ~${i.users}  |  DB size: ${i.dbSize}
 ${vTuning.configComment}
 ${pgVTuning.configComment}

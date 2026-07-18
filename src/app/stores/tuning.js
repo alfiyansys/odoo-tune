@@ -10,8 +10,8 @@ import { validateConfig } from '../../engine/validators/sanity.js'
 /** @returns {object} Default form state */
 export function defaultInputs() {
   return {
-    totalRamGB: 16,
-    cpuCores: 4,
+    totalRAMGB: 16,
+    totalCPUCores: 4,
     diskType: 'ssd',
     users: 50,
     odooVersion: 18,

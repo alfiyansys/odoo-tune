@@ -77,12 +77,12 @@
   <!-- RAM Slider -->
   <SliderInput
     label="Total RAM"
-    value={inputs.totalRamGB}
+    value={inputs.totalRAMGB}
     min={1}
     max={256}
     step={1}
     unit="GB"
-    onchange={(v) => handleInput('totalRamGB', v)}
+    onchange={(v) => handleInput('totalRAMGB', v)}
   />
 
   <!-- OS Reserve -->
@@ -126,12 +126,12 @@
   <!-- CPU Cores Slider -->
   <SliderInput
     label="CPU Cores"
-    value={inputs.cpuCores}
+    value={inputs.totalCPUCores}
     min={1}
     max={64}
     step={1}
     unit="cores"
-    onchange={(v) => handleInput('cpuCores', v)}
+    onchange={(v) => handleInput('totalCPUCores', v)}
   />
 
   <!-- Disk Type -->
