@@ -7,3 +7,7 @@ Thumbs.db
 *.log
 coverage/
 test-results/
+
+# Generated reports
+load-test-report.md
+*.report.md
