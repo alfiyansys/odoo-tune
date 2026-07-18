@@ -6,6 +6,8 @@
     onChange,
   } = $props()
 
+  import SliderInput from './SliderInput.svelte'
+
   const profileNames = getProfileNames()
 
   function handleInput(field, value) {
@@ -66,26 +68,15 @@
   </div>
 
   <!-- RAM Slider -->
-  <div>
-    <label class="flex justify-between text-sm font-medium text-gray-200" for="ram">
-      <span>Total RAM</span>
-      <span class="text-indigo-400 font-mono">{inputs.totalRamGB} GB</span>
-    </label>
-    <input
-      id="ram"
-      type="range"
-      min="1"
-      max="256"
-      step="1"
-      value={inputs.totalRamGB}
-      oninput={(e) => handleInput('totalRamGB', parseInt(e.target.value))}
-      class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 mt-1"
-    />
-    <div class="flex justify-between text-xs text-gray-500 mt-0.5">
-      <span>1 GB</span>
-      <span>256 GB</span>
-    </div>
-  </div>
+  <SliderInput
+    label="Total RAM"
+    value={inputs.totalRamGB}
+    min={1}
+    max={256}
+    step={1}
+    unit="GB"
+    onchange={(v) => handleInput('totalRamGB', v)}
+  />
 
   <!-- OS Reserve -->
   <div class="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
@@ -106,20 +97,17 @@
 
     {#if osReserveManual}
       <div class="mt-2">
-        <input
-          id="os-reserve"
-          type="range"
-          min="0.5"
-          max="32"
-          step="0.5"
+        <SliderInput
+          label="OS Reserve"
           value={osReserveGB}
-          oninput={(e) => handleOsReserveChange(parseFloat(e.target.value))}
-          class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mt-1"
+          min={0.5}
+          max={32}
+          step={0.5}
+          unit="GB"
+          accent="amber"
+          onchange={handleOsReserveChange}
         />
-        <div class="flex justify-between text-xs text-gray-500 mt-0.5">
-          <span class="font-mono">{osReserveGB} GB</span>
-          <span class="text-amber-400/70">Reserved for OS + other services</span>
-        </div>
+        <p class="text-xs text-amber-400/70 mt-1">Reserved for OS + other services</p>
       </div>
     {:else}
       <p class="text-xs text-gray-400 mt-1">
@@ -129,26 +117,15 @@
   </div>
 
   <!-- CPU Cores Slider -->
-  <div>
-    <label class="flex justify-between text-sm font-medium text-gray-200" for="cpu">
-      <span>CPU Cores</span>
-      <span class="text-indigo-400 font-mono">{inputs.cpuCores} cores</span>
-    </label>
-    <input
-      id="cpu"
-      type="range"
-      min="1"
-      max="64"
-      step="1"
-      value={inputs.cpuCores}
-      oninput={(e) => handleInput('cpuCores', parseInt(e.target.value))}
-      class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 mt-1"
-    />
-    <div class="flex justify-between text-xs text-gray-500 mt-0.5">
-      <span>1 core</span>
-      <span>64 cores</span>
-    </div>
-  </div>
+  <SliderInput
+    label="CPU Cores"
+    value={inputs.cpuCores}
+    min={1}
+    max={64}
+    step={1}
+    unit="cores"
+    onchange={(v) => handleInput('cpuCores', v)}
+  />
 
   <!-- Disk Type -->
   <div>
@@ -175,26 +152,15 @@
   </div>
 
   <!-- Users -->
-  <div>
-    <label class="flex justify-between text-sm font-medium text-gray-200" for="users">
-      <span>Concurrent Users</span>
-      <span class="text-indigo-400 font-mono">{inputs.users}</span>
-    </label>
-    <input
-      id="users"
-      type="range"
-      min="1"
-      max="500"
-      step="1"
-      value={inputs.users}
-      oninput={(e) => handleInput('users', parseInt(e.target.value))}
-      class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 mt-1"
-    />
-    <div class="flex justify-between text-xs text-gray-500 mt-0.5">
-      <span>1</span>
-      <span>500</span>
-    </div>
-  </div>
+  <SliderInput
+    label="Concurrent Users"
+    value={inputs.users}
+    min={1}
+    max={500}
+    step={1}
+    unit="users"
+    onchange={(v) => handleInput('users', v)}
+  />
 
   <!-- Odoo Version -->
   <div>
