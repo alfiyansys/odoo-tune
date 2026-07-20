@@ -13,6 +13,12 @@ Use a simplified Git Flow with two main branches:
 - Only receives merges from `dev` via PR (or `git merge dev` when verified)
 - Contains GitHub Pages deployment workflow (`.github/workflows/deploy.yml`)
 - Leave GitHub Pages config untouched — it lives here permanently
+- **Before merging `dev` → `main`:** increment `APP_VERSION` in `src/engine/heuristics/version.js`
+  (e.g., `v0.1` → `v0.2`). Squash any version-bump commit into the merge.
+- After merge, tag the commit on `main` with the version:
+  ```bash
+  git tag v0.1 && git push origin v0.1
+  ```
 
 ### `dev` — Active Development
 - **Default working branch** for all new features, fixes, and improvements
