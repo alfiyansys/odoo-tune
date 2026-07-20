@@ -231,6 +231,8 @@ statement_timeout = 0
       dbSize: i.dbSize,
       batchHeavy: i.batchHeavy,
       diskType: i.diskType,
+      odooVersion: i.odooVersion,
+      busConnectionOverhead: vTuning.busConnectionOverhead,
     })
     nginxConf = nginxResult.config
     nginxParams = nginxResult.params

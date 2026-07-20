@@ -239,15 +239,77 @@ export function calcGzip() {
 }
 
 /**
+ * Calculate Odoo HTTP and long-polling ports based on version.
+ *
+ * @param {number} odooVersion - 17, 18, or 19
+ * @returns {{ odooPort: number, longpollPort: number }}
+ */
+export function calcOdooPorts(odooVersion) {
+  return {
+    odooPort: 8069,
+    longpollPort: 8072,  // All modern Odoo versions use 8072 for gevent
+  }
+}
+
+/**
+ * Get long-polling location paths for a given Odoo version.
+ * Odoo 17: only /longpolling/
+ * Odoo 18+: both /longpolling/ and /websocket/
+ *
+ * @param {number} odooVersion
+ * @returns {{ paths: string[], configSections: string, rationale: string }}
+ */
+export function calcLongpollPaths(odooVersion) {
+  const { longpollPort } = calcOdooPorts(odooVersion)
+
+  if (odooVersion === 17) {
+    return {
+      paths: ['/longpolling/'],
+      configSections: `    location /longpolling/ {
+        proxy_pass http://odoo-longpoll;
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }`,
+      rationale: `Odoo 17 uses server-sent events over /longpolling/ on port ${longpollPort}. No WebSocket support needed.`,
+    }
+  }
+
+  // Odoo 18+
+  return {
+    paths: ['/longpolling/', '/websocket/'],
+    configSections: `    location /longpolling/ {
+        proxy_pass http://odoo-longpoll;
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    location /websocket/ {
+        proxy_pass http://odoo-longpoll;
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }`,
+    rationale: `Odoo ${odooVersion} uses both /longpolling/ (SSE fallback) and /websocket/ (WebSocket) on port ${longpollPort}. Both bypass proxy buffering for real-time bus updates.`,
+  }
+}
+
+/**
  * Calculate upstream block configuration.
  *
  * @param {number} odooWorkers
  * @param {number} keepalive - Upstream keepalive connections
- * @returns {{ config: string, odooPort: number, longpollPort: number, rationale: string }}
+ * @param {number} busConnectionOverhead - Version-specific bus connection overhead
+ * @param {number} odooPort
+ * @param {number} longpollPort
+ * @returns {{ config: string, rationale: string }}
  */
-export function calcUpstream(odooWorkers, keepalive) {
-  const odooPort = 8069
-  const longpollPort = 8072
+export function calcUpstream(odooWorkers, keepalive, busConnectionOverhead, odooPort, longpollPort) {
+  const lpKeepalive = Math.max(4, Math.min(keepalive, keepalive - Math.round(busConnectionOverhead / 2)))
 
   return {
     odooPort,
@@ -259,9 +321,9 @@ export function calcUpstream(odooWorkers, keepalive) {
 
 upstream odoo-longpoll {
     server 127.0.0.1:${longpollPort} max_fails=3 fail_timeout=30s;
-    keepalive ${keepalive};
+    keepalive ${lpKeepalive};
 }`,
-    rationale: `Two upstreams: 'odoo' (HTTP workers on port ${odooPort}) and 'odoo-longpoll' (gevent bus on ${longpollPort}). keepalive=${keepalive} connections per upstream. max_fails=3 / fail_timeout=30s prevents routing to unhealthy workers during transient failures.`,
+    rationale: `Two upstreams: 'odoo' (HTTP workers on port ${odooPort}) and 'odoo-longpoll' (gevent bus on ${longpollPort}). HTTP keepalive=${keepalive}, long-poll keepalive=${lpKeepalive} (adjusted for bus overhead). max_fails=3 / fail_timeout=30s prevents routing to unhealthy workers.`,
   }
 }
 
@@ -275,9 +337,11 @@ upstream odoo-longpoll {
  * @param {'small'|'medium'|'large'|'very-large'} params.dbSize
  * @param {boolean} params.batchHeavy
  * @param {'ssd'|'nvme'|'hdd'|'cloud'} params.diskType
+ * @param {number} [params.odooVersion=18]
+ * @param {number} [params.busConnectionOverhead=8]
  * @returns {{ config: string, params: object, warnings: string[] }}
  */
-export function generateNginxConfig({ expectedUsers, odooWorkers, dbSize, batchHeavy = false, diskType = 'ssd' }) {
+export function generateNginxConfig({ expectedUsers, odooWorkers, dbSize, batchHeavy = false, diskType = 'ssd', odooVersion = 18, busConnectionOverhead = 8 }) {
   const bodySize = calcClientMaxBodySize(dbSize, batchHeavy)
   const buffers = calcProxyBuffers(dbSize, batchHeavy)
   const timeouts = calcProxyTimeouts(dbSize, batchHeavy)
@@ -287,7 +351,9 @@ export function generateNginxConfig({ expectedUsers, odooWorkers, dbSize, batchH
   const buffering = calcProxyBuffering(batchHeavy)
   const sslCache = calcSSLSessionCache(expectedUsers)
   const gzip = calcGzip()
-  const upstream = calcUpstream(odooWorkers, keepalive.value)
+  const { odooPort, longpollPort } = calcOdooPorts(odooVersion)
+  const longpoll = calcLongpollPaths(odooVersion)
+  const upstream = calcUpstream(odooWorkers, keepalive.value, busConnectionOverhead, odooPort, longpollPort)
 
   const warnings = []
   if (expectedUsers > 200) {
@@ -299,7 +365,7 @@ export function generateNginxConfig({ expectedUsers, odooWorkers, dbSize, batchH
 
   const config = `# =================================================================
 # OdooTune — NGINX Reverse Proxy Configuration for Odoo
-# Generated for: ${expectedUsers} users, ${odooWorkers} workers, ${dbSize} DB, ${diskType} disk
+# Generated for: Odoo ${odooVersion}, ${expectedUsers} users, ${odooWorkers} workers, ${dbSize} DB, ${diskType} disk
 # ${batchHeavy ? 'Batch-heavy workload' : 'Standard workload'}
 # =================================================================
 # WARNING: Review paths (ssl_certificate, static alias, filestore)
@@ -410,22 +476,9 @@ ${gzip.configLines.split('\n').map(l => `    ${l}`).join('\n')}
 
     # ──────────────────────────────────────────────
     # Long-polling (gevent) — no buffering
+    # Odoo ${odooVersion}: ${longpoll.paths.join(', ')}
     # ──────────────────────────────────────────────
-    location /longpolling/ {
-        proxy_pass http://odoo-longpoll;
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-
-    location /websocket/ {
-        proxy_pass http://odoo-longpoll;
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
+${longpoll.configSections.replace(/^/gm, '    ')}
 
     # ──────────────────────────────────────────────
     # Main Proxy
