@@ -164,6 +164,7 @@ export function tune(inputs = {}) {
   const workers = generateWorkersConfig({
     expectedUsers: i.users,
     cpuCores: pgCores,
+    odooCores,
     connPool: i.connPool,
   })
 
@@ -181,6 +182,7 @@ export function tune(inputs = {}) {
     maxConnections: workers.pgParams.maxConn.value,
     dbSize: i.dbSize,
     odooVersion: i.odooVersion,
+    expectedUsers: i.users,
   })
 
   // --- WAL / Checkpoint section (uses PG's share) ---
@@ -234,7 +236,7 @@ statement_timeout = 0
   let nginxConf = ''
   let nginxParams = null
   if (i.useNginx) {
-    const odooWorkers = calcOdooWorkers(odooCores, workers.pgParams.maxConn.value).value
+    const odooWorkers = calcOdooWorkers(odooCores, workers.pgParams.maxConn.value, i.users).value
     const nginxResult = generateNginxConfig({
       expectedUsers: i.users,
       odooWorkers,

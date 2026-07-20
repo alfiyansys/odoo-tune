@@ -118,17 +118,27 @@ export function calcMaxParallelWorkersPerGather(cpuCores) {
  *
  * @param {number} cpuCores
  * @param {number} maxConnections
+ * @param {number} [expectedUsers] - For ratio-based warnings
  * @returns {{ workers: number, rationale: string, warning?: string }}
  */
-export function calcOdooWorkers(cpuCores, maxConnections) {
+export function calcOdooWorkers(cpuCores, maxConnections, expectedUsers) {
   const byCpu = cpuCores * 2 + 1
   const byConn = Math.round(maxConnections / 2)
   const value = Math.min(byCpu, byConn)
-  const warning = value < 3
-    ? 'Very few Odoo workers. Users may experience queueing during peak load.'
-    : value > 30
-      ? 'High worker count increases memory pressure. Ensure limit_memory_soft/hard are set correctly.'
-      : undefined
+
+  // User-aware warnings
+  let warning = undefined
+  const ratio = expectedUsers ? Math.round(expectedUsers / value) : null
+  if (value < 3) {
+    warning = 'Very few Odoo workers. Users may experience severe queueing during peak load.' +
+      (ratio > 20 ? ' Ratio: ~1 worker per ' + ratio + ' users — expect long wait times.' : '')
+  } else if (ratio !== null && ratio > 15) {
+    warning = 'Too few Odoo workers: ' + value + ' for ~' + expectedUsers + ' users (1:' + ratio + ' ratio). Each worker handles one request at a time. Recommended max ratio is 1:15. Consider adding more CPU cores to Odoo or using separate servers.'
+  } else if (value === byCpu && ratio !== null && ratio > 10) {
+    warning = 'Worker count limited by CPU (' + cpuCores + ' cores → ' + value + ' workers). For ~' + expectedUsers + ' users (1:' + ratio + ' ratio), consider dedicated Odoo server for more cores.'
+  } else if (value > 30) {
+    warning = 'High worker count increases memory pressure. Ensure limit_memory_soft/hard are set correctly.'
+  }
 
   return {
     value,
@@ -143,17 +153,18 @@ export function calcOdooWorkers(cpuCores, maxConnections) {
  *
  * @param {object} params
  * @param {number} params.expectedUsers
- * @param {number} params.cpuCores
+ * @param {number} params.cpuCores - CPU cores for PG-side parallelism
+ * @param {number} params.odooCores - CPU cores allocated to Odoo (for worker calc)
  * @param {string} params.connPool
  * @returns {{ config: string, pgParams: object, odooParams: object, warnings: string[] }}
  */
-export function generateWorkersConfig({ expectedUsers, cpuCores, connPool = 'transaction' }) {
+export function generateWorkersConfig({ expectedUsers, cpuCores, odooCores = cpuCores, connPool = 'transaction' }) {
   const maxConn = calcMaxConnections(expectedUsers, connPool)
   const reserved = calcReservedConnections(maxConn.value)
   const maxWorkers = calcMaxWorkerProcesses(cpuCores)
   const parallelWorkers = calcMaxParallelWorkers(cpuCores)
   const perGather = calcMaxParallelWorkersPerGather(cpuCores)
-  const odooWorkers = calcOdooWorkers(cpuCores, maxConn.value)
+  const odooWorkers = calcOdooWorkers(odooCores, maxConn.value, expectedUsers)
 
   const pgWarnings = [maxConn.warning, perGather.warning].filter(Boolean)
   const odWarnings = [odooWorkers.warning].filter(Boolean)

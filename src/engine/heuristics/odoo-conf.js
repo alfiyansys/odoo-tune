@@ -14,17 +14,26 @@
  *
  * @param {number} cpuCores
  * @param {number} maxConnections
+ * @param {number} [expectedUsers] - For ratio-based warnings
  * @returns {{ value: number, configLine: string, rationale: string, warning?: string }}
  */
-export function calcOdooWorkers(cpuCores, maxConnections) {
+export function calcOdooWorkers(cpuCores, maxConnections, expectedUsers) {
   const byCpu = cpuCores * 2 + 1
   const byConn = Math.round(maxConnections / 2)
   const value = Math.min(byCpu, byConn)
-  const warning = value < 3
-    ? 'Very few Odoo workers. Users may experience queueing during peak load.'
-    : value > 30
-      ? 'High worker count increases memory pressure. Ensure limit_memory_soft/hard are set correctly.'
-      : undefined
+
+  let warning = undefined
+  const ratio = expectedUsers ? Math.round(expectedUsers / value) : null
+  if (value < 3) {
+    warning = 'Very few Odoo workers. Users may experience severe queueing during peak load.' +
+      (ratio > 20 ? ' Ratio: ~1 worker per ' + ratio + ' users — expect long wait times.' : '')
+  } else if (ratio !== null && ratio > 15) {
+    warning = 'Too few Odoo workers: ' + value + ' for ~' + expectedUsers + ' users (1:' + ratio + ' ratio). Each worker handles one request at a time. Recommended max ratio is 1:15. Consider adding more CPU cores to Odoo or using separate servers.'
+  } else if (value === byCpu && ratio !== null && ratio > 10) {
+    warning = 'Worker count limited by CPU (' + cpuCores + ' cores → ' + value + ' workers). For ~' + expectedUsers + ' users (1:' + ratio + ' ratio), consider dedicated Odoo server for more cores.'
+  } else if (value > 30) {
+    warning = 'High worker count increases memory pressure. Ensure limit_memory_soft/hard are set correctly.'
+  }
 
   return {
     value,
@@ -135,15 +144,17 @@ export function calcDBPool(maxConnections) {
  * Generate a complete odoo.conf content.
  *
  * @param {object} params
+ * @param {object} params
  * @param {number} params.totalRamGB
  * @param {number} params.cpuCores
  * @param {number} params.maxConnections
  * @param {string} params.dbSize
  * @param {number} [params.odooVersion=18]
+ * @param {number} [params.expectedUsers]
  * @returns {{ config: string, params: object, warnings: string[] }}
  */
-export function generateOdooConfig({ totalRamGB, cpuCores, maxConnections, dbSize, odooVersion = 18 }) {
-  const workers = calcOdooWorkers(cpuCores, maxConnections)
+export function generateOdooConfig({ totalRamGB, cpuCores, maxConnections, dbSize, odooVersion = 18, expectedUsers }) {
+  const workers = calcOdooWorkers(cpuCores, maxConnections, expectedUsers)
   const memLimits = calcMemoryLimits(totalRamGB, workers.value)
   const requestLimits = calcRequestLimits(dbSize)
   const dbPool = calcDBPool(maxConnections)
