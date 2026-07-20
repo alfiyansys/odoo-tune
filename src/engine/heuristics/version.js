@@ -4,6 +4,9 @@
  * and resource requirements that affect optimal PostgreSQL tuning.
  */
 
+/** Current app version string (displayed in header). */
+export const APP_VERSION = 'v0.1'
+
 /**
  * Version-specific tuning modifiers.
  * Each version returns a set of multipliers and overrides applied to base heuristics.
