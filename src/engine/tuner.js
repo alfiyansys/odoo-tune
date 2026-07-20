@@ -15,7 +15,8 @@ import { generateMemoryConfig } from './heuristics/memory.js'
 import { generateAutovacuumConfig } from './heuristics/autovacuum.js'
 import { generateWorkersConfig } from './heuristics/workers.js'
 import { generatePlannerConfig } from './heuristics/planner.js'
-import { generateOdooConfig } from './heuristics/odoo-conf.js'
+import { generateOdooConfig, calcOdooWorkers } from './heuristics/odoo-conf.js'
+import { generateNginxConfig } from './heuristics/nginx.js'
 import { getVersionTuning } from './heuristics/version.js'
 import { getPgVersionTuning } from './heuristics/pg-version.js'
 
@@ -50,6 +51,7 @@ const DEFAULTS = {
   profile: 'balanced',
   deployment: 'same',  // 'same' = Odoo+PG on one machine, 'separate' = dedicated machines
   osReserveGB: undefined,  // undefined = auto-calculate based on total RAM
+  useNginx: false,
 }
 
 /**
@@ -83,6 +85,8 @@ export function normalizeInputs(inputs) {
   const validDeployments = ['same', 'separate']
   if (!validDeployments.includes(i.deployment)) throw new Error(`deployment must be one of: ${validDeployments.join(', ')}`)
 
+  if (typeof i.useNginx !== 'boolean') throw new Error('useNginx must be a boolean')
+
   const validPgVersions = [14, 15, 16, 17]
   if (!validPgVersions.includes(i.pgVersion)) throw new Error(`pgVersion must be one of: ${validPgVersions.join(', ')}`)
 
@@ -93,10 +97,10 @@ export function normalizeInputs(inputs) {
  * Split resources between PostgreSQL and Odoo when co-located.
  * Returns dedicated RAM for PG and Odoo.
  */
-function splitResources(totalRamGB, cpuCores, deployment, osReserveGBOverride) {
+function splitResources(totalRamGB, cpuCores, deployment, osReserveGBOverride, useNginx = false) {
   if (deployment === 'separate') {
     return {
-      pgRamGB: totalRamGB, odooRamGB: totalRamGB, osReserveGB: 0,
+      pgRamGB: totalRamGB, odooRamGB: totalRamGB, osReserveGB: 0, nginxReserveGB: 0,
       pgCores: cpuCores, odooCores: cpuCores, osCores: 0,
     }
   }
@@ -105,8 +109,17 @@ function splitResources(totalRamGB, cpuCores, deployment, osReserveGBOverride) {
     ? osReserveGBOverride
     : Math.max(1, Math.round(totalRamGB * 0.1))
 
+  // --- NGINX reserve (when reverse proxy is enabled) ---
+  // NGINX needs modest memory for proxy buffers, SSL session cache, and worker processes.
+  // When enabled, bump the OS reserve to include nginx's share.
+  let nginxReserveGB = 0
+  if (useNginx && osReserveGBOverride == null) {
+    nginxReserveGB = Math.max(0.5, Math.round(totalRamGB * 0.03))
+  }
+
   // --- RAM split ---
-  const remainingRAM = Math.max(1, totalRamGB - osReserveGB)
+  const effectiveOSReserveGB = osReserveGB + nginxReserveGB
+  const remainingRAM = Math.max(1, totalRamGB - effectiveOSReserveGB)
   const pgRamGB = Math.round(remainingRAM * 0.65)
   const odooRamGB = remainingRAM - pgRamGB
 
@@ -118,7 +131,7 @@ function splitResources(totalRamGB, cpuCores, deployment, osReserveGBOverride) {
   const pgCores = Math.max(1, Math.round(remainingCores * 0.65))
   const odooCores = Math.max(1, remainingCores - pgCores)
 
-  return { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores }
+  return { pgRamGB, odooRamGB, osReserveGB, nginxReserveGB, pgCores, odooCores, osCores }
 }
 
 /**
@@ -132,7 +145,7 @@ export function tune(inputs = {}) {
   const profileData = PROFILES[i.profile].profile
   const vTuning = getVersionTuning(i.odooVersion)
   const pgVTuning = getPgVersionTuning(i.pgVersion)
-  const { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores } = splitResources(i.totalRAMGB, i.totalCPUCores, i.deployment, i.osReserveGB)
+  const { pgRamGB, odooRamGB, osReserveGB, nginxReserveGB, pgCores, odooCores, osCores } = splitResources(i.totalRAMGB, i.totalCPUCores, i.deployment, i.osReserveGB, i.useNginx)
 
   // --- PostgreSQL config (uses PG's share of RAM) ---
   const memory = generateMemoryConfig({
@@ -151,6 +164,7 @@ export function tune(inputs = {}) {
   const workers = generateWorkersConfig({
     expectedUsers: i.users,
     cpuCores: pgCores,
+    odooCores,
     connPool: i.connPool,
   })
 
@@ -168,6 +182,7 @@ export function tune(inputs = {}) {
     maxConnections: workers.pgParams.maxConn.value,
     dbSize: i.dbSize,
     odooVersion: i.odooVersion,
+    expectedUsers: i.users,
   })
 
   // --- WAL / Checkpoint section (uses PG's share) ---
@@ -180,8 +195,9 @@ export function tune(inputs = {}) {
   const osLabel = i.osReserveGB != null
     ? `OS reserve (manual): ${osReserveGB}GB`
     : `OS reserve (auto): ${osReserveGB}GB`
+  const nginxLabel = i.useNginx ? ` + nginx buffers: ${nginxReserveGB}GB` : ''
   const deploymentLabel = i.deployment === 'same'
-    ? `Co-located with Odoo (PG: ${pgRamGB}GB/${pgCores}c, Odoo: ${odooRamGB}GB/${odooCores}c, ${osLabel})`
+    ? `Co-located with Odoo (PG: ${pgRamGB}GB/${pgCores}c, Odoo: ${odooRamGB}GB/${odooCores}c, ${osLabel}${nginxLabel})`
     : 'Dedicated server (separate from Odoo)'
 
   const postgresqlConf = `# =================================================================
@@ -216,19 +232,40 @@ statement_timeout = 0
     ...walConfig.warnings,
   ]
 
+  // --- NGINX config (when reverse proxy is enabled) ---
+  let nginxConf = ''
+  let nginxParams = null
+  if (i.useNginx) {
+    const odooWorkers = calcOdooWorkers(odooCores, workers.pgParams.maxConn.value, i.users).value
+    const nginxResult = generateNginxConfig({
+      expectedUsers: i.users,
+      odooWorkers,
+      dbSize: i.dbSize,
+      batchHeavy: i.batchHeavy,
+      diskType: i.diskType,
+      odooVersion: i.odooVersion,
+      busConnectionOverhead: vTuning.busConnectionOverhead,
+    })
+    nginxConf = nginxResult.config
+    nginxParams = nginxResult.params
+    warnings.push(...nginxResult.warnings)
+  }
+
   return {
     postgresqlConf,
     odooConf: odoo.config,
+    nginxConf,
     params: {
       memory: memory.params,
       autovacuum: autovacuum.params,
       workers: workers.pgParams,
       odoo: { ...workers.odooParams, ...odoo.params },
+      nginx: nginxParams,
       planner: planner.params,
       wal: walConfig.params,
       version: vTuning,
       pgVersion: pgVTuning,
-      resourceSplit: { pgRamGB, odooRamGB, osReserveGB, pgCores, odooCores, osCores, deployment: i.deployment },
+      resourceSplit: { pgRamGB, odooRamGB, osReserveGB, nginxReserveGB, pgCores, odooCores, osCores, deployment: i.deployment, useNginx: i.useNginx },
     },
     warnings,
     inputs: i,

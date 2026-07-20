@@ -85,6 +85,32 @@
     onchange={(v) => handleInput('totalRAMGB', v)}
   />
 
+  <!-- CPU Cores Slider -->
+  <SliderInput
+    label="CPU Cores"
+    value={inputs.totalCPUCores}
+    min={1}
+    max={64}
+    step={1}
+    unit="cores"
+    onchange={(v) => handleInput('totalCPUCores', v)}
+  />
+
+  <!-- Disk Type -->
+  <div>
+    <label class="block text-sm font-medium text-gray-200" for="disk">Disk Type</label>
+    <select
+      id="disk"
+      value={inputs.diskType}
+      onchange={(e) => handleInput('diskType', e.target.value)}
+      class="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+    >
+      {#each diskTypes as dt}
+        <option value={dt.value}>{dt.label}</option>
+      {/each}
+    </select>
+  </div>
+
   <!-- OS Reserve -->
   <div class="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
     <div class="flex items-center justify-between">
@@ -121,32 +147,6 @@
         Auto-calculated: ~10% of total RAM (min 1 GB) for OS kernel, caches, and other services
       </p>
     {/if}
-  </div>
-
-  <!-- CPU Cores Slider -->
-  <SliderInput
-    label="CPU Cores"
-    value={inputs.totalCPUCores}
-    min={1}
-    max={64}
-    step={1}
-    unit="cores"
-    onchange={(v) => handleInput('totalCPUCores', v)}
-  />
-
-  <!-- Disk Type -->
-  <div>
-    <label class="block text-sm font-medium text-gray-200" for="disk">Disk Type</label>
-    <select
-      id="disk"
-      value={inputs.diskType}
-      onchange={(e) => handleInput('diskType', e.target.value)}
-      class="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-    >
-      {#each diskTypes as dt}
-        <option value={dt.value}>{dt.label}</option>
-      {/each}
-    </select>
   </div>
 
   <!-- Separator -->
@@ -284,6 +284,26 @@
         class="w-4 h-4 rounded bg-gray-800 border-gray-600 accent-indigo-500"
       />
       <span class="text-sm text-gray-200">Batch-heavy (imports, mass updates)</span>
+    </label>
+  </div>
+
+  <!-- NGINX Reverse Proxy Toggle -->
+  <hr class="border-gray-700" />
+  <div class="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+    <label class="flex items-center gap-3 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={inputs.useNginx}
+        onchange={(e) => handleInput('useNginx', e.target.checked)}
+        class="w-4 h-4 rounded bg-gray-800 border-gray-600 accent-green-500"
+      />
+      <div>
+        <span class="text-sm font-medium text-gray-200">NGINX Reverse Proxy</span>
+        <p class="text-xs text-gray-400 mt-0.5">
+          Generate optimized nginx server block with proxy buffers, caching,
+          gzip, rate limiting, SSL session cache, and long-polling support
+        </p>
+      </div>
     </label>
   </div>
 </div>
