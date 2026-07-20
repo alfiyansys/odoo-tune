@@ -96,9 +96,7 @@
             </div>
 
             <!-- Config content -->
-            <pre class="p-4 overflow-x-auto text-sm font-mono text-gray-300 leading-relaxed max-h-[70vh] overflow-y-auto">
-              <code>{activeTab === 'postgresql' ? result.data.postgresqlConf : activeTab === 'nginx' ? result.data.nginxConf : result.data.odooConf}</code>
-            </pre>
+            <pre class="p-4 overflow-x-auto text-sm font-mono text-gray-300 leading-relaxed max-h-[70vh] overflow-y-auto"><code>{activeTab === 'postgresql' ? result.data.postgresqlConf : activeTab === 'nginx' ? result.data.nginxConf : result.data.odooConf}</code></pre>
           </div>
 
           <!-- Warnings -->
