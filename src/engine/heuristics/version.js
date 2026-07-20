@@ -5,7 +5,7 @@
  */
 
 /** Current app version string (displayed in header). */
-export const APP_VERSION = 'v0.1'
+export const APP_VERSION = 'v0.2'
 
 /**
  * Version-specific tuning modifiers.
