@@ -4,6 +4,40 @@ This file defines how the AI coding agent should build OdooTune. Follow these in
 
 ---
 
+## 0. Git Flow — Branch Strategy
+
+Use a simplified Git Flow with two main branches:
+
+### `main` — Stable / Production
+- **Protected** — never commit directly to `main`
+- Only receives merges from `dev` via PR (or `git merge dev` when verified)
+- Contains GitHub Pages deployment workflow (`.github/workflows/deploy.yml`)
+- Leave GitHub Pages config untouched — it lives here permanently
+
+### `dev` — Active Development
+- **Default working branch** for all new features, fixes, and improvements
+- All commits should target `dev`, not `main`
+- When `dev` reaches a stable milestone, merge into `main`:
+  ```bash
+  git checkout main && git merge dev && git push origin main
+  ```
+
+### Feature Branches (optional)
+For larger features (spanning multiple commits/days), create a feature branch off `dev`:
+```
+feature/<short-description>
+```
+Example: `feature/health-meters`, `feature/share-url`
+
+Merge back to `dev` when complete, then delete the feature branch.
+
+### Rules
+- **Never** commit directly to `main`
+- Development happens on `dev` (or feature branches off `dev`)
+- Push both branches regularly to keep remote in sync
+
+---
+
 ## 1. Commit Discipline — Granular Commits Per Logical Progress
 
 Every logical step MUST be committed with a concise, descriptive message. A "logical step" is the smallest meaningful unit of progress that leaves the project in a working (or at least non-regressed) state.
@@ -181,4 +215,4 @@ When stuck or uncertain:
 
 ---
 
-*Last updated: Initial version*
+*Last updated: Added Git Flow section with dev branch strategy*
