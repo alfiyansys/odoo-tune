@@ -20,7 +20,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: GH_PAGES=true npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
