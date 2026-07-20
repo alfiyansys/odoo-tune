@@ -15,7 +15,8 @@ import { generateMemoryConfig } from './heuristics/memory.js'
 import { generateAutovacuumConfig } from './heuristics/autovacuum.js'
 import { generateWorkersConfig } from './heuristics/workers.js'
 import { generatePlannerConfig } from './heuristics/planner.js'
-import { generateOdooConfig } from './heuristics/odoo-conf.js'
+import { generateOdooConfig, calcOdooWorkers } from './heuristics/odoo-conf.js'
+import { generateNginxConfig } from './heuristics/nginx.js'
 import { getVersionTuning } from './heuristics/version.js'
 import { getPgVersionTuning } from './heuristics/pg-version.js'
 
@@ -50,6 +51,7 @@ const DEFAULTS = {
   profile: 'balanced',
   deployment: 'same',  // 'same' = Odoo+PG on one machine, 'separate' = dedicated machines
   osReserveGB: undefined,  // undefined = auto-calculate based on total RAM
+  useNginx: false,
 }
 
 /**
@@ -82,6 +84,8 @@ export function normalizeInputs(inputs) {
 
   const validDeployments = ['same', 'separate']
   if (!validDeployments.includes(i.deployment)) throw new Error(`deployment must be one of: ${validDeployments.join(', ')}`)
+
+  if (typeof i.useNginx !== 'boolean') throw new Error('useNginx must be a boolean')
 
   const validPgVersions = [14, 15, 16, 17]
   if (!validPgVersions.includes(i.pgVersion)) throw new Error(`pgVersion must be one of: ${validPgVersions.join(', ')}`)
@@ -216,14 +220,33 @@ statement_timeout = 0
     ...walConfig.warnings,
   ]
 
+  // --- NGINX config (when reverse proxy is enabled) ---
+  let nginxConf = ''
+  let nginxParams = null
+  if (i.useNginx) {
+    const odooWorkers = calcOdooWorkers(odooCores, workers.pgParams.maxConn.value).value
+    const nginxResult = generateNginxConfig({
+      expectedUsers: i.users,
+      odooWorkers,
+      dbSize: i.dbSize,
+      batchHeavy: i.batchHeavy,
+      diskType: i.diskType,
+    })
+    nginxConf = nginxResult.config
+    nginxParams = nginxResult.params
+    warnings.push(...nginxResult.warnings)
+  }
+
   return {
     postgresqlConf,
     odooConf: odoo.config,
+    nginxConf,
     params: {
       memory: memory.params,
       autovacuum: autovacuum.params,
       workers: workers.pgParams,
       odoo: { ...workers.odooParams, ...odoo.params },
+      nginx: nginxParams,
       planner: planner.params,
       wal: walConfig.params,
       version: vTuning,

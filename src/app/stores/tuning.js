@@ -23,6 +23,7 @@ export function defaultInputs() {
     osReserveGB: undefined,  // undefined = auto-calculate
     multiCompany: false,
     batchHeavy: false,
+    useNginx: false,
   }
 }
 

@@ -64,6 +64,20 @@
               >
                 odoo.conf
               </button>
+              {#if result.data.nginxConf}
+                <button
+                  class="px-4 py-3 text-sm font-medium transition-colors
+                    {activeTab === 'nginx'
+                      ? 'text-green-400 border-b-2 border-green-500 bg-gray-800/50'
+                      : 'text-gray-400 hover:text-gray-200'}"
+                  onclick={() => activeTab = 'nginx'}
+                >
+                  <span class="flex items-center gap-1.5">
+                    nginx.conf
+                    <span class="text-xs bg-green-900/60 text-green-400 px-1.5 py-0.5 rounded-full">reverse proxy</span>
+                  </span>
+                </button>
+              {/if}
               <div class="ml-auto flex items-center gap-2 px-3">
                 <span class="text-xs text-gray-500">{result.data.profileName}</span>
                 <button
@@ -83,7 +97,7 @@
 
             <!-- Config content -->
             <pre class="p-4 overflow-x-auto text-sm font-mono text-gray-300 leading-relaxed max-h-[70vh] overflow-y-auto">
-              <code>{activeTab === 'postgresql' ? result.data.postgresqlConf : result.data.odooConf}</code>
+              <code>{activeTab === 'postgresql' ? result.data.postgresqlConf : activeTab === 'nginx' ? result.data.nginxConf : result.data.odooConf}</code>
             </pre>
           </div>
 

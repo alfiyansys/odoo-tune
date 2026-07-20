@@ -286,4 +286,24 @@
       <span class="text-sm text-gray-200">Batch-heavy (imports, mass updates)</span>
     </label>
   </div>
+
+  <!-- NGINX Reverse Proxy Toggle -->
+  <hr class="border-gray-700" />
+  <div class="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+    <label class="flex items-center gap-3 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={inputs.useNginx}
+        onchange={(e) => handleInput('useNginx', e.target.checked)}
+        class="w-4 h-4 rounded bg-gray-800 border-gray-600 accent-green-500"
+      />
+      <div>
+        <span class="text-sm font-medium text-gray-200">NGINX Reverse Proxy</span>
+        <p class="text-xs text-gray-400 mt-0.5">
+          Generate optimized nginx server block with proxy buffers, caching,
+          gzip, rate limiting, SSL session cache, and long-polling support
+        </p>
+      </div>
+    </label>
+  </div>
 </div>
