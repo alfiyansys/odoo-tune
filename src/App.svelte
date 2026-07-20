@@ -2,6 +2,7 @@
   import './app.css'
   import InputForm from './app/components/InputForm.svelte'
   import { defaultInputs, runTuning } from './app/stores/tuning.js'
+  import { APP_VERSION } from './engine/heuristics/version.js'
 
   let inputs = $state(defaultInputs())
   let result = $derived(runTuning(inputs))
@@ -18,7 +19,7 @@
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
       <span class="text-2xl">🛠</span>
       <h1 class="text-xl font-bold text-gray-100">OdooTune</h1>
-      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">v0.1</span>
+      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">{APP_VERSION}</span>
       <span class="text-sm text-gray-400 hidden sm:block ml-2">
         Optimize PostgreSQL + Odoo for your hardware
       </span>
