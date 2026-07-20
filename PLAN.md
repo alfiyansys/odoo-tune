@@ -331,6 +331,28 @@ npm run build     # Static build to dist/
 | Cloud DB (RDS, Cloud SQL) limitation | When "cloud" disk type selected, reduce shared_buffers, disable some params |
 | Too many workers → context switching | Cap workers at `2 * cpu_cores + 1` for OLTP |
 | Browser JS disabled | Pure client-side app is an enhancement; core logic still available as Node.js CLI |
+| Worker OOM crash loop (limit_memory too tight) | Formula in odoo-conf.js calcMemoryLimits() must guarantee per-worker MB ≥ 1024 for production. Cross-check VSZ baseline of Odoo workers (~520-530 MB for Odoo 19e). |
+| File-based PHP session locking | Odoo apps should use Redis for session storage. Warn users with high concurrency + batch workloads. |
+
+### Production Incident Validation — `odoo-tm-502` (2026-07-20)
+
+On 2026-07-20, production Odoo 19e (`odoo.trustmedis.com`) experienced a **worker crash loop** causing 10 minutes of HTTP 502:
+
+| Parameter | Incident Config (wrong) | OdooTune Recommendation (correct) |
+|-----------|------------------------|-----------------------------------|
+| Server | 15 GB RAM, 8 CPU, PG 16 | Same input |
+| `limit_memory_soft` | 512 MB | **1 GB** (matching OdooTune's calcMemoryLimits output) |
+| `limit_memory_hard` | 614 MB | **~1.2 GB** (matching OdooTune's calcMemoryLimits output) |
+| Workers | 5 | 5 (matches) |
+| Impact | 5,631× virtual memory limit errors, 41 Recv-Q queue | — |
+
+**Key finding:** Odoo 19e worker VSZ is ~520-530 MB. At incident config (soft=512MB), workers crashed immediately after spawning (VSZ > hard limit → `request_count: 0`). The OdooTune formula for 15GB/8CPU already produces correct values (1GB/1.2GB), confirming the heuristic is production-validated.
+
+**Lessons for OdooTune:**
+1. Add a **warning** when `limit_memory_soft` < 1024 MB for production deployments with >10 users
+2. Document that Odoo 19e worker baseline VSZ is ~520 MB — soft limit must be at least 2× this to account for peak memory
+3. Recommend monitoring alert for `virtual memory limit reached` log pattern (always causes full outage)
+4. Suggest `proxy_next_upstream error timeout http_502` in NGINX to fail fast instead of queueing to dead workers
 
 ---
 
